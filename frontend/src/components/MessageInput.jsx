@@ -7,11 +7,11 @@ const MessageInput = () => {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
-  const { sendMessage } = useChatStore();
+  const { sendMessage, selectedChat } = useChatStore(); // Now supports both user and group chat
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (!file.type.startsWith("image/")) {
+    if (!file?.type?.startsWith("image/")) {
       toast.error("Please select an image file");
       return;
     }
@@ -34,6 +34,8 @@ const MessageInput = () => {
 
     try {
       await sendMessage({
+        chatId: selectedChat._id, // Support both individual and group chats
+        isGroup: selectedChat.isGroup, // Indicate whether it's a group chat
         text: text.trim(),
         image: imagePreview,
       });
@@ -106,4 +108,5 @@ const MessageInput = () => {
     </div>
   );
 };
+
 export default MessageInput;

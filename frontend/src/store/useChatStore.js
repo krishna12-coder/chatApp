@@ -6,26 +6,40 @@ import { useAuthStore } from "./useAuthStore";
 export const useChatStore = create((set, get) => ({
   messages: [],
   users: [],
-  selectedUser: null,
+  groups: [], // Store groups
+  selectedChat: null, // Can be a user or a group
   isUsersLoading: false,
   isMessagesLoading: false,
 
   getUsers: async () => {
-    set({ isUsersLoading: true });
     try {
+      console.log("Fetching users from API..."); // Debugging log
       const res = await axiosInstance.get("/messages/users");
+      console.log("Fetched Users:", res.data); // Debugging log
       set({ users: res.data });
     } catch (error) {
-      toast.error(error.response.data.message);
-    } finally {
-      set({ isUsersLoading: false });
+      console.error("Error fetching users:", error);
+      toast.error(error.response?.data?.message || "Failed to load users");
     }
   },
 
-  getMessages: async (userId) => {
+  getGroups: async () => {
+    try {
+      console.log("Fetching Groups...");
+      const res = await axiosInstance.get("/messages/groups");
+      console.log("Groups Fetched:", res.data);
+      set({ groups: res.data });
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+    }
+  },
+
+  getMessages: async (chatId, isGroup = false) => {
     set({ isMessagesLoading: true });
     try {
-      const res = await axiosInstance.get(`/messages/${userId}`);
+      const res = await axiosInstance.get(
+        `/messages/${chatId}?isGroup=${isGroup}`
+      );
       set({ messages: res.data });
     } catch (error) {
       toast.error(error.response.data.message);
@@ -33,25 +47,27 @@ export const useChatStore = create((set, get) => ({
       set({ isMessagesLoading: false });
     }
   },
+
   sendMessage: async (messageData) => {
-    const { selectedUser, messages } = get();
+    const { selectedChat, messages } = get();
     try {
-      const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
+      const res = await axiosInstance.post(
+        `/messages/send/${selectedChat._id}?isGroup=${selectedChat.isGroup}`,
+        messageData
+      );
       set({ messages: [...messages, res.data] });
     } catch (error) {
       toast.error(error.response.data.message);
     }
   },
 
-  subscribeToMessages: () => {
-    const { selectedUser } = get();
-    if (!selectedUser) return;
+  subscribeToMessages: (chatId, isGroup = false) => {
+    if (!chatId) return;
 
     const socket = useAuthStore.getState().socket;
 
     socket.on("newMessage", (newMessage) => {
-      const isMessageSentFromSelectedUser = newMessage.senderId === selectedUser._id;
-      if (!isMessageSentFromSelectedUser) return;
+      if (newMessage.chatId !== chatId) return; // Ensure message belongs to selected chat
 
       set({
         messages: [...get().messages, newMessage],
@@ -59,10 +75,10 @@ export const useChatStore = create((set, get) => ({
     });
   },
 
-  unsubscribeFromMessages: () => {
+  unsubscribeFromMessages: (chatId) => {
     const socket = useAuthStore.getState().socket;
     socket.off("newMessage");
   },
 
-  setSelectedUser: (selectedUser) => set({ selectedUser }),
+  setSelectedChat: (chat) => set({ selectedChat: chat }),
 }));

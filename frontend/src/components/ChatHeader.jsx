@@ -1,10 +1,12 @@
-import { X } from "lucide-react";
+import { X, Users } from "lucide-react"; // Users icon for group chat
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 
 const ChatHeader = () => {
-  const { selectedUser, setSelectedUser } = useChatStore();
+  const { selectedChat, setSelectedChat } = useChatStore(); // Now it can be a user or a group
   const { onlineUsers } = useAuthStore();
+
+  const isGroupChat = selectedChat?.isGroup;
 
   return (
     <div className="p-2.5 border-b border-base-300">
@@ -13,25 +15,37 @@ const ChatHeader = () => {
           {/* Avatar */}
           <div className="avatar">
             <div className="size-10 rounded-full relative">
-              <img src={selectedUser.profilePic || "/avatar.png"} alt={selectedUser.fullName} />
+              {isGroupChat ? (
+                <Users className="size-10 text-gray-500" /> // Group icon
+              ) : (
+                <img
+                  src={selectedChat?.profilePic || "/avatar.png"}
+                  alt={selectedChat?.fullName}
+                />
+              )}
             </div>
           </div>
 
-          {/* User info */}
+          {/* Chat info */}
           <div>
-            <h3 className="font-medium">{selectedUser.fullName}</h3>
-            <p className="text-sm text-base-content/70">
-              {onlineUsers.includes(selectedUser._id) ? "Online" : "Offline"}
-            </p>
+            <h3 className="font-medium">
+              {isGroupChat ? selectedChat?.groupName : selectedChat?.fullName}
+            </h3>
+            {!isGroupChat && (
+              <p className="text-sm text-base-content/70">
+                {onlineUsers.includes(selectedChat?._id) ? "Online" : "Offline"}
+              </p>
+            )}
           </div>
         </div>
 
         {/* Close button */}
-        <button onClick={() => setSelectedUser(null)}>
+        <button onClick={() => setSelectedChat(null)}>
           <X />
         </button>
       </div>
     </div>
   );
 };
+
 export default ChatHeader;
