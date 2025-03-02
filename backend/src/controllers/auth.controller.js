@@ -5,6 +5,7 @@ import cloudinary from "../lib/cloudinary.js";
 
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
+
   try {
     if (!fullName || !email || !password) {
       return res.status(400).json({ message: "All fields are required" });
@@ -14,10 +15,14 @@ export const signup = async (req, res) => {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
 
-    const user = await User.findOne({ email });
+    // Check if user already exists with a timeout
+    const userExists = await User.findOne({ email }).maxTimeMS(30000); // 30 sec timeout
 
-    if (user) return res.status(400).json({ message: "Email already exists" });
+    if (userExists) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
 
+    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -27,22 +32,18 @@ export const signup = async (req, res) => {
       password: hashedPassword,
     });
 
-    if (newUser) {
-      // generate jwt token here
-      generateToken(newUser._id, res);
-      await newUser.save();
+    // Generate JWT token
+    generateToken(newUser._id, res);
+    await newUser.save();
 
-      res.status(201).json({
-        _id: newUser._id,
-        fullName: newUser.fullName,
-        email: newUser.email,
-        profilePic: newUser.profilePic,
-      });
-    } else {
-      res.status(400).json({ message: "Invalid user data" });
-    }
+    res.status(201).json({
+      _id: newUser._id,
+      fullName: newUser.fullName,
+      email: newUser.email,
+      profilePic: newUser.profilePic,
+    });
   } catch (error) {
-    console.log("Error in signup controller", error.message);
+    console.error("Error in signup controller:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -50,17 +51,20 @@ export const signup = async (req, res) => {
 export const login = async (req, res) => {
   const { email, password } = req.body;
   try {
-    const user = await User.findOne({ email });
+    // Find user with a query timeout
+    const user = await User.findOne({ email }).maxTimeMS(30000);
 
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
+    // Compare hashed passwords
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
     if (!isPasswordCorrect) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
+    // Generate token
     generateToken(user._id, res);
 
     res.status(200).json({
@@ -70,17 +74,17 @@ export const login = async (req, res) => {
       profilePic: user.profilePic,
     });
   } catch (error) {
-    console.log("Error in login controller", error.message);
+    console.error("Error in login controller:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
 export const logout = (req, res) => {
   try {
-    res.cookie("jwt", "", { maxAge: 0 });
+    res.cookie("jwt", "", { maxAge: 0, httpOnly: true, secure: true, sameSite: "strict" });
     res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
-    console.log("Error in logout controller", error.message);
+    console.error("Error in logout controller:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -94,17 +98,20 @@ export const updateProfile = async (req, res) => {
       return res.status(400).json({ message: "Profile pic is required" });
     }
 
+    // Upload to Cloudinary
     const uploadResponse = await cloudinary.uploader.upload(profilePic);
+
+    // Update user profile pic
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { profilePic: uploadResponse.secure_url },
       { new: true }
-    );
+    ).maxTimeMS(30000); // 30 sec timeout
 
     res.status(200).json(updatedUser);
   } catch (error) {
-    console.log("error in update profile:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("Error in updateProfile:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
@@ -112,7 +119,7 @@ export const checkAuth = (req, res) => {
   try {
     res.status(200).json(req.user);
   } catch (error) {
-    console.log("Error in checkAuth controller", error.message);
+    console.error("Error in checkAuth controller:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
